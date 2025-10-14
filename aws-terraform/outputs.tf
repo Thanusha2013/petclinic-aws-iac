@@ -7,9 +7,6 @@ output "kms_key_arn" {
 }
 
 
-output "iam_role_arn" {
-  value = aws_iam_role.spring_petclinic_role.arn
-}
 
 output "iam_role_name" {
   value = aws_iam_role.spring_petclinic_role.name
