@@ -7,16 +7,6 @@ output "kms_key_arn" {
 }
 
 
-
-output "iam_role_name" {
-  value = aws_iam_role.spring_petclinic_role.name
-}
-
-output "iam_policy_arn" {
-  value = aws_iam_policy.spring_petclinic_storage_policy.arn
-}
-
-
 output "s3_bucket_id" {
   value = aws_s3_bucket.spring_petclinic.id
 }
