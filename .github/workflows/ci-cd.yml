@@ -34,7 +34,7 @@ jobs:
         working-directory: ./terraform
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -var="aws_region=us-east-1"
 
   build-and-deploy:
     name: Build Docker and Deploy to ECR / ECS
