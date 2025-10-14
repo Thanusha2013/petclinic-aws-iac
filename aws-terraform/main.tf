@@ -41,21 +41,6 @@ resource "aws_iam_role_policy_attachment" "attach_policy" {
 }
 
 
-resource "aws_iam_role" "spring_petclinic_role" {
-  name = "spring-petclinic-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = {
-        Service = "ec2.amazonaws.com"  # replace with the service that will assume this role
-      },
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
-
 resource "aws_s3_bucket" "spring_petclinic" {
   bucket = "springpetclinicstorage"
   acl    = "private"
