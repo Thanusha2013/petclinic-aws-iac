@@ -23,7 +23,4 @@ resource "aws_vpc" "this" {
   }
 }
 
-variable "aws_vpc_name" {
-  default = "spring-petclinic-vpc"
-}
 
