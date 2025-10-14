@@ -26,6 +26,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Debug AWS Region
+         run: echo "AWS Region is ${{ secrets.AWS_REGION }}"
+
+
       - name: Terraform Init
         working-directory: ./aws-terraform
         run: terraform init -input=false
