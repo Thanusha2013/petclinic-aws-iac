@@ -6,7 +6,6 @@ output "kms_key_arn" {
   value = aws_kms_key.spring_petclinic_init.arn
 }
 
-
 output "s3_bucket_id" {
   value = aws_s3_bucket.spring_petclinic.id
 }
@@ -27,4 +26,14 @@ output "iam_role_arn" {
   value = aws_iam_role.spring_petclinic_role.arn
 }
 
+output "ecs_cluster_name" {
+  value = aws_ecs_cluster.spring_petclinic_cluster.name
+}
 
+output "ecr_repo_url" {
+  value = aws_ecr_repository.spring_petclinic.repository_url
+}
+
+output "load_balancer_dns" {
+  value = aws_lb.spring_petclinic_lb.dns_name
+}
