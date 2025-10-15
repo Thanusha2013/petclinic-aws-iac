@@ -1,35 +1,34 @@
 variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "us-east-1"
+  type    = string
+  default = "us-east-1"
 }
 
 variable "aws_vpc_name" {
-  description = "VPC Name"
-  type        = string
-  default     = "spring-petclinic-vpc"
+  type    = string
+  default = "spring-petclinic-vpc"
 }
 
-variable "public_subnets" {
-  description = "List of public subnet IDs"
-  type        = list(string)
-  default     = ["subnet-042196cdf8f14007f", "subnet-06565072e35252ccc"]
+variable "vpc_cidr" {
+  type    = string
+  default = "10.0.0.0/16"
 }
 
-variable "ecs_security_group_id" {
-  description = "Security Group ID for ECS tasks"
-  type        = string
-  default = "sg-065ce05baceaaa77c"
+variable "public_subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
-variable "lb_security_group_id" {
-  description = "Security Group ID for Load Balancer"
-  type        = string
-  default = "sg-065ce05baceaaa77c"
+variable "ecs_security_group_name" {
+  type    = string
+  default = "ecs-sg"
 }
 
-variable "vpc_id" {
-  description = "VPC ID for Load Balancer Target Group"
-  type        = string
-  default     = "vpc-0507b6e5de315e7e1"
+variable "lb_security_group_name" {
+  type    = string
+  default = "lb-sg"
+}
+
+variable "db_password" {
+  type    = string
+  description = "Database password for the application"
 }
