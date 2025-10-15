@@ -6,7 +6,7 @@ resource "aws_kms_key" "spring_petclinic_init" {
 }
 
 resource "aws_kms_alias" "spring_petclinic_init_alias" {
-  name          = "alias/spring-petclinic-init"
+  name          = "alias/spring-petclinic-init-v2"
   target_key_id = aws_kms_key.spring_petclinic_init.id
 }
 
@@ -46,7 +46,7 @@ resource "aws_iam_role_policy_attachment" "attach_policy" {
 
 
 resource "aws_s3_bucket" "spring_petclinic" {
-  bucket = "springpetclinicstorage"
+  bucket = "springpetclinicstorage-${random_id.suffix.hex}"
   acl    = "private"
 
   versioning {
@@ -62,10 +62,14 @@ resource "aws_s3_bucket" "spring_petclinic" {
     }
   }
 }
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
 
 
 resource "aws_iam_policy" "kms_decrypt_policy" {
-  name        = "spring-petclinic-kms-policy"
+  name        = "spring-petclinic-kms-policy-v2"
   description = "Allow decrypt using KMS key"
   policy = jsonencode({
     Version = "2012-10-17"
