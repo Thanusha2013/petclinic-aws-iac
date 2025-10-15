@@ -18,6 +18,7 @@ variable "db_password" {
 variable "lb_security_group_id" {
   description = "Security Group ID for Load Balancer"
   type        = string
+  default     = "sg-0123456789abcdef"
 }
 
 variable "vpc_id" {
