@@ -25,6 +25,7 @@ variable "ecs_security_group_id" {
 variable "lb_security_group_id" {
   description = "Security Group ID for Load Balancer"
   type        = string
+  default = "sg-065ce05baceaaa77c"
 }
 
 variable "vpc_id" {
