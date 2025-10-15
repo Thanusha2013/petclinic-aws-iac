@@ -6,6 +6,7 @@ variable "aws_region" {
 variable "aws_vpc_name" {
   description = "Name of the VPC"
   type        = string
+  default     = "my-app-vpc"
 }
 
 variable "db_password" {
