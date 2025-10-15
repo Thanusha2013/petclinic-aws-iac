@@ -24,4 +24,5 @@ variable "lb_security_group_id" {
 variable "vpc_id" {
   description = "VPC ID for Load Balancer Target Group"
   type        = string
+  default     = "vpc-0507b6e5de315e7e2"
 }
