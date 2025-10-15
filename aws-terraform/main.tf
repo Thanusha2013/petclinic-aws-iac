@@ -7,7 +7,7 @@ resource "aws_kms_key" "spring_petclinic_init" {
   description             = "Spring Petclinic KMS Key"
   deletion_window_in_days = 30
   key_usage               = "ENCRYPT_DECRYPT"
-  customer_master_key_spec = "RSA_2048"
+  customer_master_key_spec = "SYMMETRIC_DEFAULT"   # <- change here
 }
 
 resource "aws_kms_alias" "spring_petclinic_init_alias" {
