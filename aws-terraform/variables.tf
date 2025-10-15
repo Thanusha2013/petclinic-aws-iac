@@ -1,11 +1,25 @@
 variable "aws_region" {
-  description = "AWS region to deploy resources"
-  type        = string
-  default     = "us-east-1"
+  type    = string
+  default = "us-east-1"
 }
 
-variable "db_password" {
-  description = "Database password for the application"
-  type        = string
-  default     = "MyS3cureP@ssw0rd!"
+variable "aws_vpc_name" {
+  type    = string
+  default = "spring-petclinic-vpc"
+}
+
+variable "ecs_security_group_id" {
+  type    = string
+}
+
+variable "lb_security_group_id" {
+  type    = string
+}
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "public_subnets" {
+  type = list(string)
 }
