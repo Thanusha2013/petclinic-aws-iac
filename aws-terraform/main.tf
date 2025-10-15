@@ -1,30 +1,8 @@
-terraform {
-  required_version = ">= 1.0.0, < 2.0.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# VPC
-resource "aws_vpc" "this" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-  tags = { Name = var.aws_vpc_name }
-}
-
-# KMS Key
+# KMS
 resource "aws_kms_key" "spring_petclinic_init" {
   description             = "Spring Petclinic KMS Key"
   deletion_window_in_days = 30
@@ -42,11 +20,13 @@ resource "aws_iam_role" "spring_petclinic_role" {
   name = "spring-petclinic-role-${random_id.suffix.hex}"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-      Action = "sts:AssumeRole"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = { Service = "ecs-tasks.amazonaws.com" }
+        Action = "sts:AssumeRole"
+      }
+    ]
   })
 }
 
@@ -58,7 +38,7 @@ resource "aws_iam_policy" "spring_petclinic_storage_policy" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["s3:GetObject", "s3:DeleteObject"]
-      Resource = ["arn:aws:s3:::springpetclinicstorage-${random_id.suffix.hex}/*"]
+      Resource = ["arn:aws:s3:::springpetclinicstorage/*"]
     }]
   })
 }
@@ -86,14 +66,12 @@ resource "aws_iam_role_policy_attachment" "attach_kms_policy" {
   policy_arn = aws_iam_policy.kms_decrypt_policy.arn
 }
 
-# S3 Bucket
+# S3
 resource "aws_s3_bucket" "spring_petclinic" {
   bucket = "springpetclinicstorage-${random_id.suffix.hex}"
   acl    = "private"
 
-  versioning {
-    enabled = true
-  }
+  versioning { enabled = true }
 
   server_side_encryption_configuration {
     rule {
@@ -109,7 +87,6 @@ resource "aws_s3_bucket" "spring_petclinic" {
 resource "aws_ecr_repository" "spring_petclinic" {
   name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
-
   encryption_configuration {
     encryption_type = "KMS"
     kms_key         = aws_kms_key.spring_petclinic_init.arn
@@ -136,12 +113,7 @@ resource "aws_ecs_task_definition" "spring_petclinic_task" {
       name      = "spring-petclinic"
       image     = "${aws_ecr_repository.spring_petclinic.repository_url}:latest"
       essential = true
-      portMappings = [
-        {
-          containerPort = 8080
-          hostPort      = 8080
-        }
-      ]
+      portMappings = [{ containerPort = 8080, hostPort = 8080 }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
