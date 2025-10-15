@@ -15,17 +15,6 @@ variable "db_password" {
   sensitive   = true
 }
 
-variable "public_subnets" {
-  description = "List of public subnet IDs"
-  type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
-}
-
-variable "ecs_security_group_id" {
-  description = "Security Group ID for ECS tasks"
-  type        = string
-}
-
 variable "lb_security_group_id" {
   description = "Security Group ID for Load Balancer"
   type        = string
