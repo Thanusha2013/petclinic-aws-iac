@@ -2,7 +2,6 @@ resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# KMS Key & Alias
 resource "aws_kms_key" "spring_petclinic_init" {
   description             = "Spring Petclinic KMS Key"
   deletion_window_in_days = 30
@@ -14,7 +13,6 @@ resource "aws_kms_alias" "spring_petclinic_init_alias" {
   target_key_id = aws_kms_key.spring_petclinic_init.id
 }
 
-# IAM Role & Policies
 resource "aws_iam_role" "spring_petclinic_role" {
   name = "spring-petclinic-role-${random_id.suffix.hex}"
 
@@ -83,7 +81,6 @@ resource "aws_s3_bucket" "spring_petclinic" {
   }
 }
 
-# ECR Repository
 resource "aws_ecr_repository" "spring_petclinic" {
   name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
@@ -93,12 +90,10 @@ resource "aws_ecr_repository" "spring_petclinic" {
   }
 }
 
-# ECS Cluster
 resource "aws_ecs_cluster" "spring_petclinic_cluster" {
   name = "spring-petclinic-cluster"
 }
 
-# ECS Task Definition
 resource "aws_ecs_task_definition" "spring_petclinic_task" {
   family                   = "spring-petclinic-task"
   network_mode             = "awsvpc"
@@ -126,7 +121,6 @@ resource "aws_ecs_task_definition" "spring_petclinic_task" {
   ])
 }
 
-# ECS Service
 resource "aws_ecs_service" "spring_petclinic_service" {
   name            = "spring-petclinic-service"
   cluster         = aws_ecs_cluster.spring_petclinic_cluster.id
@@ -146,7 +140,6 @@ resource "aws_ecs_service" "spring_petclinic_service" {
   ]
 }
 
-# Load Balancer
 resource "aws_lb" "spring_petclinic_lb" {
   name               = "spring-petclinic-lb"
   internal           = false
