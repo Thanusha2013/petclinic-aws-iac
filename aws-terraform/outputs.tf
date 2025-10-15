@@ -1,3 +1,19 @@
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+output "public_subnets" {
+  value = [aws_subnet.public1.id, aws_subnet.public2.id]
+}
+
+output "ecs_security_group_id" {
+  value = aws_security_group.ecs_sg.id
+}
+
+output "lb_security_group_id" {
+  value = aws_security_group.lb_sg.id
+}
+
 output "kms_key_id" {
   value = aws_kms_key.spring_petclinic_init.id
 }
@@ -26,16 +42,8 @@ output "iam_role_arn" {
   value = aws_iam_role.spring_petclinic_role.arn
 }
 
-output "ecr_repo_url" {
+output "ecr_repository_url" {
   value = aws_ecr_repository.spring_petclinic.repository_url
-}
-
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.spring_petclinic_cluster.name
-}
-
-output "ecs_service_name" {
-  value = aws_ecs_service.spring_petclinic_service.name
 }
 
 output "load_balancer_dns" {
