@@ -19,6 +19,7 @@ variable "public_subnets" {
 variable "ecs_security_group_id" {
   description = "Security Group ID for ECS tasks"
   type        = string
+  default = "sg-065ce05baceaaa77c"
 }
 
 variable "lb_security_group_id" {
