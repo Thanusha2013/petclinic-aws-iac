@@ -1,28 +1,33 @@
 variable "aws_region" {
-  description = "AWS region to deploy resources"
+  description = "AWS region"
   type        = string
+  default     = "us-east-1"
 }
 
 variable "aws_vpc_name" {
-  description = "Name of the VPC"
+  description = "VPC Name"
   type        = string
-  default     = "my-app-vpc"
+  default     = "spring-petclinic-vpc"
 }
 
-variable "db_password" {
-  description = "Database password"
+variable "public_subnets" {
+  description = "List of public subnet IDs"
+  type        = list(string)
+  default     = ["subnet-08d374972b20eb81c", "subnet-0625e97ec5ba9dddd"]
+}
+
+variable "ecs_security_group_id" {
+  description = "Security Group ID for ECS tasks"
   type        = string
-  sensitive   = true
 }
 
 variable "lb_security_group_id" {
   description = "Security Group ID for Load Balancer"
   type        = string
-  default     = "sg-0123456789abcdef"
 }
 
 variable "vpc_id" {
   description = "VPC ID for Load Balancer Target Group"
   type        = string
-  default     = "vpc-0507b6e5de315e7e2"
+  default     = ["vpc-0507b6e5de315e7e1"]
 }
