@@ -11,7 +11,7 @@ resource "aws_kms_alias" "spring_petclinic_init_alias" {
 }
 
 resource "aws_iam_role" "spring_petclinic_role" {
-  name = "spring-petclinic-role-v2"
+  name = "spring-petclinic-role-${random_id.suffix.hex}"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -27,7 +27,7 @@ resource "aws_iam_role" "spring_petclinic_role" {
 }
 
 resource "aws_iam_policy" "spring_petclinic_storage_policy" {
-  name        = "spring-petclinic-storage-policy-v2"
+  name        = "spring-petclinic-storage-policy-${random_id.suffix.hex}"
   description = "Policy to allow access to S3 bucket"
   policy = jsonencode({
     Version = "2012-10-17"
