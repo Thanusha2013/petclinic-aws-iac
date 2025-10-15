@@ -10,17 +10,6 @@ resource "aws_kms_alias" "spring_petclinic_init_alias" {
   target_key_id = aws_kms_key.spring_petclinic_init.id
 }
 
-resource "aws_iam_role" "spring_petclinic_role" {
-  name = "spring-petclinic-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" } # or lambda/ecs depending on usage
-    }]
-  })
-}
 
 resource "aws_iam_policy" "spring_petclinic_storage_policy" {
   name        = "spring-petclinic-storage-policy"
