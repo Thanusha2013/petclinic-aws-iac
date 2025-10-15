@@ -6,7 +6,7 @@ resource "aws_kms_key" "spring_petclinic_init" {
 }
 
 resource "aws_kms_alias" "spring_petclinic_init_alias" {
-  name          = "alias/spring-petclinic-init-v2"
+  name          = "alias/spring-petclinic-init-${random_id.suffix.hex}"
   target_key_id = aws_kms_key.spring_petclinic_init.id
 }
 
@@ -69,7 +69,7 @@ resource "random_id" "suffix" {
 
 
 resource "aws_iam_policy" "kms_decrypt_policy" {
-  name        = "spring-petclinic-kms-policy-v2"
+  name        = "spring-petclinic-kms-policy-${random_id.suffix.hex}"
   description = "Allow decrypt using KMS key"
   policy = jsonencode({
     Version = "2012-10-17"
