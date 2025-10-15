@@ -1,24 +1,35 @@
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
+  description = "AWS region to deploy resources"
+  type        = string
+}
+
+variable "aws_vpc_name" {
+  description = "Name of the VPC"
+  type        = string
 }
 
 variable "db_password" {
-  type = string
+  description = "Database password"
+  type        = string
+  sensitive   = true
 }
 
 variable "public_subnets" {
-  type = list(string)
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "lb_security_group_id" {
-  type = string
+  description = "List of public subnet IDs"
+  type        = list(string)
 }
 
 variable "ecs_security_group_id" {
-  type = string
+  description = "Security Group ID for ECS tasks"
+  type        = string
+}
+
+variable "lb_security_group_id" {
+  description = "Security Group ID for Load Balancer"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID for Load Balancer Target Group"
+  type        = string
 }
