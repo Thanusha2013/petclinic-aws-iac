@@ -30,11 +30,11 @@ output "ecr_repo_url" {
   value = aws_ecr_repository.spring_petclinic.repository_url
 }
 
-output "cluster_name" {
+output "ecs_cluster_name" {
   value = aws_ecs_cluster.spring_petclinic_cluster.name
 }
 
-output "service_name" {
+output "ecs_service_name" {
   value = aws_ecs_service.spring_petclinic_service.name
 }
 
