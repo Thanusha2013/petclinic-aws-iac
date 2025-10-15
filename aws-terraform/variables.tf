@@ -18,7 +18,7 @@ variable "db_password" {
 variable "public_subnets" {
   description = "List of public subnet IDs"
   type        = list(string)
-  default = ["subnet-abc123", "subnet-def456"]
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
 variable "ecs_security_group_id" {
