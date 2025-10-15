@@ -13,7 +13,7 @@ variable "aws_vpc_name" {
 variable "public_subnets" {
   description = "List of public subnet IDs"
   type        = list(string)
-  default     = ["subnet-08d374972b20eb81a", "subnet-0625e97ec5ba9dddb"]
+  default     = ["subnet-08d374972b20eb81c", "subnet-0625e97ec5ba9dddd"]
 }
 
 variable "ecs_security_group_id" {
@@ -29,5 +29,5 @@ variable "lb_security_group_id" {
 variable "vpc_id" {
   description = "VPC ID for Load Balancer Target Group"
   type        = string
-  default     = ["vpc-0507b6e5de315e7e2"]
+  default     = "vpc-0507b6e5de315e7e1"
 }
