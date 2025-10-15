@@ -3,7 +3,6 @@ resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# KMS key
 resource "aws_kms_key" "spring_petclinic_init" {
   description             = "Spring Petclinic KMS Key"
   deletion_window_in_days = 30
@@ -16,7 +15,6 @@ resource "aws_kms_alias" "spring_petclinic_init_alias" {
   target_key_id = aws_kms_key.spring_petclinic_init.id
 }
 
-# S3 bucket
 resource "aws_s3_bucket" "spring_petclinic" {
   bucket = "springpetclinicstorage-${random_id.suffix.hex}"
   acl    = "private"
