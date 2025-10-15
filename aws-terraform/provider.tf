@@ -13,78 +13,57 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Dynamic VPC
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
-
   tags = {
-    Name = "spring-petclinic-vpc"
+    Name = var.aws_vpc_name
   }
 }
 
-# Public subnets
+# Public Subnets
 resource "aws_subnet" "public1" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
-
-  tags = {
-    Name = "spring-petclinic-public-subnet-1"
-  }
+  tags = { Name = "spring-petclinic-public1" }
 }
 
 resource "aws_subnet" "public2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
-
-  tags = {
-    Name = "spring-petclinic-public-subnet-2"
-  }
+  tags = { Name = "spring-petclinic-public2" }
 }
 
-# ECS security group
-resource "aws_security_group" "ecs_sg" {
-  name        = "spring-petclinic-ecs-sg"
-  description = "ECS tasks SG"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+# Internet Gateway
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  tags = { Name = "spring-petclinic-igw" }
 }
 
-# Load Balancer security group
-resource "aws_security_group" "lb_sg" {
-  name        = "spring-petclinic-lb-sg"
-  description = "Load Balancer SG"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+# Public Route Table
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
   }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  tags = { Name = "spring-petclinic-public-rt" }
 }
+
+# Route Table Associations
+resource "aws_route_table_association" "public1" {
+  subnet_id      = aws_subnet.public1.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "public2" {
+  subnet_id      = aws_subnet.public2.id
+  route_table_id = aws_route_table.public.id
+}
+
+data "aws_availability_zones" "available" {}
