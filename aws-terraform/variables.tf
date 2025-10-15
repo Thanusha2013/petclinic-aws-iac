@@ -3,23 +3,18 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-variable "aws_vpc_name" {
+variable "vpc_cidr" {
   type    = string
-  default = "spring-petclinic-vpc"
+  default = "10.0.0.0/16"
 }
 
-variable "ecs_security_group_id" {
-  type    = string
+variable "public_subnet_cidrs" {
+  type    = list(string)
+  default = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
-variable "lb_security_group_id" {
-  type    = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "public_subnets" {
-  type = list(string)
+variable "db_password" {
+  type      = string
+  default   = "MyS3cureP@ssw0rd!"  # You can change it
+  sensitive = true
 }
