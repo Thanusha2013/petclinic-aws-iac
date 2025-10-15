@@ -1,8 +1,4 @@
-# Random suffix for unique names
-resource "random_id" "suffix" {
-  byte_length = 4
-}
-
+# KMS Key
 resource "aws_kms_key" "spring_petclinic_init" {
   description             = "Spring Petclinic KMS Key"
   deletion_window_in_days = 30
@@ -15,25 +11,11 @@ resource "aws_kms_alias" "spring_petclinic_init_alias" {
   target_key_id = aws_kms_key.spring_petclinic_init.id
 }
 
-resource "aws_s3_bucket" "spring_petclinic" {
-  bucket = "springpetclinicstorage-${random_id.suffix.hex}"
-  acl    = "private"
-
-  versioning {
-    enabled = true
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm     = "aws:kms"
-        kms_master_key_id = aws_kms_key.spring_petclinic_init.id
-      }
-    }
-  }
+resource "random_id" "suffix" {
+  byte_length = 4
 }
 
-# IAM Role and Policy
+# IAM Role & Policy
 resource "aws_iam_role" "spring_petclinic_role" {
   name = "spring-petclinic-role-${random_id.suffix.hex}"
   assume_role_policy = jsonencode({
@@ -41,9 +23,7 @@ resource "aws_iam_role" "spring_petclinic_role" {
     Statement = [
       {
         Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
+        Principal = { Service = "ecs-tasks.amazonaws.com" }
         Action = "sts:AssumeRole"
       }
     ]
@@ -57,15 +37,10 @@ resource "aws_iam_policy" "spring_petclinic_storage_policy" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["s3:GetObject", "s3:DeleteObject"]
-      Resource = ["${aws_s3_bucket.spring_petclinic.arn}/*"]
+      Action   = ["s3:GetObject","s3:DeleteObject"]
+      Resource = ["arn:aws:s3:::springpetclinicstorage-${random_id.suffix.hex}/*"]
     }]
   })
-}
-
-resource "aws_iam_role_policy_attachment" "attach_policy" {
-  role       = aws_iam_role.spring_petclinic_role.name
-  policy_arn = aws_iam_policy.spring_petclinic_storage_policy.arn
 }
 
 resource "aws_iam_policy" "kms_decrypt_policy" {
@@ -75,10 +50,15 @@ resource "aws_iam_policy" "kms_decrypt_policy" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["kms:Decrypt", "kms:Encrypt"]
+      Action   = ["kms:Decrypt","kms:Encrypt"]
       Resource = aws_kms_key.spring_petclinic_init.arn
     }]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_policy" {
+  role       = aws_iam_role.spring_petclinic_role.name
+  policy_arn = aws_iam_policy.spring_petclinic_storage_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "attach_kms_policy" {
@@ -86,9 +66,26 @@ resource "aws_iam_role_policy_attachment" "attach_kms_policy" {
   policy_arn = aws_iam_policy.kms_decrypt_policy.arn
 }
 
+# S3 Bucket
+resource "aws_s3_bucket" "spring_petclinic" {
+  bucket = "springpetclinicstorage-${random_id.suffix.hex}"
+  acl    = "private"
+
+  versioning { enabled = true }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm     = "aws:kms"
+        kms_master_key_id = aws_kms_key.spring_petclinic_init.id
+      }
+    }
+  }
+}
+
 # ECR
 resource "aws_ecr_repository" "spring_petclinic" {
-  name                 = "spring-petclinic-${random_id.suffix.hex}"
+  name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
   encryption_configuration {
     encryption_type = "KMS"
@@ -117,10 +114,7 @@ resource "aws_ecs_task_definition" "spring_petclinic_task" {
       image     = "${aws_ecr_repository.spring_petclinic.repository_url}:latest"
       essential = true
       portMappings = [
-        {
-          containerPort = 8080
-          hostPort      = 8080
-        }
+        { containerPort = 8080, hostPort = 8080 }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -146,14 +140,55 @@ resource "aws_ecs_service" "spring_petclinic_service" {
     security_groups = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
-
   depends_on = [
     aws_iam_role_policy_attachment.attach_policy,
     aws_iam_role_policy_attachment.attach_kms_policy
   ]
 }
 
-# Load Balancer
+# ECS Security Group
+resource "aws_security_group" "ecs_sg" {
+  name        = "spring-petclinic-ecs-sg"
+  description = "Allow HTTP traffic for ECS tasks"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Load Balancer SG
+resource "aws_security_group" "lb_sg" {
+  name        = "spring-petclinic-lb-sg"
+  description = "Allow HTTP traffic"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Application Load Balancer
 resource "aws_lb" "spring_petclinic_lb" {
   name               = "spring-petclinic-lb"
   internal           = false
@@ -162,6 +197,7 @@ resource "aws_lb" "spring_petclinic_lb" {
   security_groups    = [aws_security_group.lb_sg.id]
 }
 
+# Target Group
 resource "aws_lb_target_group" "spring_petclinic_tg" {
   name        = "spring-petclinic-tg"
   port        = 8080
@@ -170,6 +206,7 @@ resource "aws_lb_target_group" "spring_petclinic_tg" {
   target_type = "ip"
 }
 
+# Listener
 resource "aws_lb_listener" "spring_petclinic_listener" {
   load_balancer_arn = aws_lb.spring_petclinic_lb.arn
   port              = "80"
@@ -181,6 +218,7 @@ resource "aws_lb_listener" "spring_petclinic_listener" {
   }
 }
 
+# Attach ECS to ALB
 resource "aws_lb_target_group_attachment" "spring_petclinic_attachment" {
   target_group_arn = aws_lb_target_group.spring_petclinic_tg.arn
   target_id        = aws_ecs_service.spring_petclinic_service.id
