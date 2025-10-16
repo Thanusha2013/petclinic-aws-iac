@@ -1,5 +1,5 @@
 # Dockerfile for Spring PetClinic - expects source code at repo root or set up as submodule
-FROM maven:3.8.8-openjdk-17 AS build
+FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 # clone the spring-petclinic repo if user doesn't provide source locally
 ARG REPO_URL=https://github.com/spring-projects/spring-petclinic.git
