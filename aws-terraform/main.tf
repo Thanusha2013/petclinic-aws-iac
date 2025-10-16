@@ -100,7 +100,7 @@ resource "aws_security_group" "ecs_sg" {
 # -------------------- IAM ROLE --------------------
 
 resource "aws_iam_role" "ecs_task_role" {
-  name = "ecsTaskExecutionRole"
+  name = "ecsTaskExecutionRole-petclinic"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
