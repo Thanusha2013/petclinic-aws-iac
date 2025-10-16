@@ -1,6 +1,5 @@
 output "ecr_repo" {
-  description = "ECR repository URL for Spring PetClinic"
-  value       = aws_ecr_repository.spring_petclinic.repository_url
+  value = aws_ecr_repository.spring_petclinic.repository_url
 }
 
 output "kms_key_id" {
