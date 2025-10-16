@@ -1,23 +1,21 @@
-# Use OpenJDK 25 base image and install Maven manually
-FROM eclipse-temurin:25-jdk AS build
-
-# Install Maven
-RUN apt-get update && apt-get install -y maven git && rm -rf /var/lib/apt/lists/*
+# Stage 1: Build
+FROM maven:3.9.0-eclipse-temurin-17 AS build
 
 WORKDIR /workspace
 
-# Clone the app source
-ARG REPO_URL=https://github.com/spring-projects/spring-petclinic.git
-RUN git clone --depth 1 $REPO_URL app || true
-WORKDIR /workspace/app
+# Copy all source files
+COPY . .
 
 # Build Spring PetClinic
-RUN mvn -DskipTests package
+RUN mvn clean package -DskipTests
 
-# Final runtime image
-FROM eclipse-temurin:25-jre
+# Stage 2: Runtime
+FROM eclipse-temurin:17-jre
+
 WORKDIR /app
-COPY --from=build /workspace/app/target/*.jar app.jar
+
+COPY --from=build /workspace/target/*.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+ENTRYPOINT ["java","-jar","app.jar"]
