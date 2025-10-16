@@ -37,7 +37,7 @@ jobs:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_aws_vpc_name: my-vpc
-          TF_VAR_public_subnets: '["10.0.1.0/24", "10.0.2.0/24"]'
+          TF_VAR_app_name: spring-petclinic
         run: terraform apply -auto-approve
 
   build-and-deploy:
@@ -49,10 +49,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
+      - name: Set up QEMU for multi-platform Docker
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -61,27 +62,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Get ECR Login
-        id: login-ecr
+      - name: Login to Amazon ECR
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
           docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-      - name: Build, Tag, and Push Docker Image
+      - name: Get ECR repository URL
+        id: ecr
         run: |
-          REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo || echo "")
-          echo "ECR Repository URL: $REPO_URL"
+          echo "REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo)" >> $GITHUB_ENV
 
-          if [ -z "$REPO_URL" ]; then
-            echo "❌ ERROR: Terraform output for ecr_repo is empty. Check aws-terraform outputs."
-            exit 1
-          fi
-
-          # Build Docker image
-          docker build -t myapp:latest .
-
-          # Tag for ECR
+      - name: Build and Push Docker Image
+        run: |
+          docker build --build-arg REPO_URL=$REPO_URL -t myapp:latest .
           docker tag myapp:latest $REPO_URL:latest
-
-          # Push to ECR
           docker push $REPO_URL:latest
