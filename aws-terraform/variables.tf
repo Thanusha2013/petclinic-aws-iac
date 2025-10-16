@@ -1,6 +1,6 @@
 variable "aws_region" {
   type    = string
-  default = "ap-south-1"
+  default = "us-east-1"
 }
 
 variable "aws_vpc_name" {
@@ -13,7 +13,17 @@ variable "db_password" {
   sensitive = true
 }
 
-variable "app_name" {
+variable "ecs_cpu" {
   type    = string
-  default = "spring-petclinic"
+  default = "512"
+}
+
+variable "ecs_memory" {
+  type    = string
+  default = "1024"
+}
+
+variable "desired_count" {
+  type    = number
+  default = 1
 }
