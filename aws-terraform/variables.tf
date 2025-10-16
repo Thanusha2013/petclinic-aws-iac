@@ -1,5 +1,19 @@
 variable "aws_region" {
-  description = "AWS region to deploy resources"
-  type        = string
-  default     = "us-east-1"
+  type    = string
+  default = "us-east-1"
+}
+
+variable "aws_vpc_name" {
+  type    = string
+  default = "spring-petclinic-vpc"
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "app_name" {
+  type    = string
+  default = "spring-petclinic"
 }
