@@ -1,5 +1,5 @@
 # Dockerfile for Spring PetClinic - expects source code at repo root or set up as submodule
-FROM maven:3.9.9-eclipse-temurin-17 AS build
+FROM maven:3.9.9-eclipse-temurin-25 AS build
 WORKDIR /workspace
 # clone the spring-petclinic repo if user doesn't provide source locally
 ARG REPO_URL=https://github.com/spring-projects/spring-petclinic.git
@@ -7,7 +7,7 @@ RUN git clone --depth 1 $REPO_URL app || true
 WORKDIR /workspace/app
 RUN mvn -DskipTests package
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=build /workspace/app/target/*.jar app.jar
 EXPOSE 8080
