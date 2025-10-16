@@ -1,5 +1,5 @@
-# --- VPC ---
-resource "aws_vpc" "this" {
+# VPC
+resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
@@ -9,29 +9,29 @@ resource "aws_vpc" "this" {
   }
 }
 
-# --- Public Subnets ---
-resource "aws_subnet" "public" {
-  count                   = 2
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = cidrsubnet(aws_vpc.this.cidr_block, 4, count.index)
+# Subnets
+resource "aws_subnet" "public1" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-east-1a"
   map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
-
-  tags = {
-    Name = "${var.app_name}-public-${count.index}"
-  }
 }
 
-data "aws_availability_zones" "available" {}
+resource "aws_subnet" "public2" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-east-1b"
+  map_public_ip_on_launch = true
+}
 
-# --- Internet Gateway ---
+# Internet Gateway
 resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.main.id
 }
 
-# --- Route Table ---
+# Route Table
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -39,17 +39,21 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table_association" "public_assoc" {
-  count          = 2
-  subnet_id      = aws_subnet.public[count.index].id
+resource "aws_route_table_association" "public1" {
+  subnet_id      = aws_subnet.public1.id
   route_table_id = aws_route_table.public.id
 }
 
-# --- Security Groups ---
-resource "aws_security_group" "ecs_sg" {
-  name        = "${var.app_name}-ecs-sg"
-  description = "ECS tasks SG"
-  vpc_id      = aws_vpc.this.id
+resource "aws_route_table_association" "public2" {
+  subnet_id      = aws_subnet.public2.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Security Groups
+resource "aws_security_group" "ecs" {
+  name        = "ecs-sg"
+  description = "ECS security group"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 8080
@@ -66,10 +70,10 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
-resource "aws_security_group" "lb_sg" {
-  name        = "${var.app_name}-lb-sg"
-  description = "Load Balancer SG"
-  vpc_id      = aws_vpc.this.id
+resource "aws_security_group" "lb" {
+  name        = "lb-sg"
+  description = "Load Balancer security group"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 80
@@ -86,52 +90,51 @@ resource "aws_security_group" "lb_sg" {
   }
 }
 
-# --- ECR Repository ---
+# ECR Repository
 resource "aws_ecr_repository" "spring_petclinic" {
-  name                 = var.app_name
+  name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
 }
 
-# --- ECS Cluster ---
+# ECS Cluster
 resource "aws_ecs_cluster" "cluster" {
-  name = "${var.app_name}-cluster"
+  name = "spring-petclinic-cluster"
 }
 
-# --- IAM Role for ECS Task ---
+# IAM Role for ECS Task Execution
 resource "aws_iam_role" "ecs_task_role" {
-  name               = "${var.app_name}-ecs-task-role"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
+  name = "ecsTaskExecutionRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
+      }
+    }]
+  })
 }
 
-data "aws_iam_policy_document" "ecs_task_assume_role" {
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_attach" {
+resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
   role       = aws_iam_role.ecs_task_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# --- ECS Task Definition ---
+# ECS Task Definition
 resource "aws_ecs_task_definition" "task" {
-  family                   = "${var.app_name}-task"
+  family                   = "spring-petclinic-task"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "1024"
+  cpu                      = var.ecs_cpu
+  memory                   = var.ecs_memory
   execution_role_arn       = aws_iam_role.ecs_task_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
-      name      = var.app_name
+      name      = "spring-petclinic"
       image     = "${aws_ecr_repository.spring_petclinic.repository_url}:latest"
       essential = true
       portMappings = [
@@ -143,7 +146,7 @@ resource "aws_ecs_task_definition" "task" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = "/ecs/${var.app_name}"
+          awslogs-group         = "/ecs/spring-petclinic"
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
         }
@@ -152,51 +155,50 @@ resource "aws_ecs_task_definition" "task" {
   ])
 }
 
-# --- ECS Service ---
+# ECS Service
 resource "aws_ecs_service" "service" {
-  name            = "${var.app_name}-service"
+  name            = "spring-petclinic-service"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.task.arn
-  desired_count   = 1
+  desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.public[*].id
-    security_groups = [aws_security_group.ecs_sg.id]
+    subnets         = [aws_subnet.public1.id, aws_subnet.public2.id]
+    security_groups = [aws_security_group.ecs.id]
     assign_public_ip = true
   }
 
   load_balancer {
     target_group_arn = aws_lb_target_group.tg.arn
-    container_name   = var.app_name
+    container_name   = "spring-petclinic"
     container_port   = 8080
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.ecs_task_attach
+    aws_iam_role_policy_attachment.ecs_task_execution
   ]
 }
 
-# --- Load Balancer ---
-resource "aws_lb" "lb" {
-  name               = "${var.app_name}-lb"
-  internal           = false
+# ALB
+resource "aws_lb" "spring_petclinic_lb" {
+  name               = "spring-petclinic-lb"
   load_balancer_type = "application"
-  subnets            = aws_subnet.public[*].id
-  security_groups    = [aws_security_group.lb_sg.id]
+  security_groups    = [aws_security_group.lb.id]
+  subnets            = [aws_subnet.public1.id, aws_subnet.public2.id]
 }
 
 resource "aws_lb_target_group" "tg" {
-  name        = "${var.app_name}-tg"
+  name        = "spring-petclinic-tg"
   port        = 8080
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.this.id
+  vpc_id      = aws_vpc.main.id
   target_type = "ip"
 }
 
 resource "aws_lb_listener" "listener" {
-  load_balancer_arn = aws_lb.lb.arn
-  port              = 80
+  load_balancer_arn = aws_lb.spring_petclinic_lb.arn
+  port              = "80"
   protocol          = "HTTP"
 
   default_action {
