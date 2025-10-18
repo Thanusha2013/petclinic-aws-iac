@@ -11,16 +11,16 @@ resource "aws_vpc" "main" {
 
 # Subnets
 resource "aws_subnet" "public1" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "us-east-1a"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
 }
 
 resource "aws_subnet" "public2" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "us-east-1b"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "us-east-1b"
   map_public_ip_on_launch = true
 }
 
@@ -52,7 +52,7 @@ resource "aws_route_table_association" "public2" {
 # Security Groups
 resource "aws_security_group" "ecs" {
   name        = "ecs-sg"
-  description = "ECS security group"
+  description = "Allow ECS traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -72,7 +72,7 @@ resource "aws_security_group" "ecs" {
 
 resource "aws_security_group" "lb" {
   name        = "lb-sg"
-  description = "Load Balancer security group"
+  description = "Allow HTTP traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -90,7 +90,7 @@ resource "aws_security_group" "lb" {
   }
 }
 
-# ECR Repository
+# ECR
 resource "aws_ecr_repository" "spring_petclinic" {
   name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
@@ -101,7 +101,7 @@ resource "aws_ecs_cluster" "cluster" {
   name = "spring-petclinic-cluster"
 }
 
-# IAM Role for ECS Task Execution
+# IAM Role
 resource "aws_iam_role" "ecs_task_role" {
   name = "ecsTaskExecutionRole"
 
@@ -122,7 +122,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ECS Task Definition
+# Task Definition
 resource "aws_ecs_task_definition" "task" {
   family                   = "spring-petclinic-task"
   network_mode             = "awsvpc"
@@ -175,12 +175,10 @@ resource "aws_ecs_service" "service" {
     container_port   = 8080
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.ecs_task_execution
-  ]
+  depends_on = [aws_iam_role_policy_attachment.ecs_task_execution]
 }
 
-# ALB
+# Load Balancer
 resource "aws_lb" "spring_petclinic_lb" {
   name               = "spring-petclinic-lb"
   load_balancer_type = "application"
@@ -198,7 +196,7 @@ resource "aws_lb_target_group" "tg" {
 
 resource "aws_lb_listener" "listener" {
   load_balancer_arn = aws_lb.spring_petclinic_lb.arn
-  port              = "80"
+  port              = 80
   protocol          = "HTTP"
 
   default_action {
