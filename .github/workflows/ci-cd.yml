@@ -10,7 +10,68 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-     
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ./aws-terraform
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        working-directory: ./aws-terraform
+        run: terraform apply -auto-approve
+
+  build-and-deploy:
+    name: Build Docker and Deploy to ECS
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Get ECR repository URL
+        id: ecr
+        run: |
+          REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo)
+          echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+          docker login --username AWS --password-stdin ${{ env.REPO_URL }}
+
+      - name: Build Docker Image
+        run: docker build -t spring-petclinic:latest .
+
+      - name: Tag Docker Image
+        run: docker tag spring-petclinic:latest ${{ env.REPO_URL }}:latest
+
+      - name: Push Docker Image
+        run: docker push ${{ env.REPO_URL }}:latest
+
+      - name: Deploy new ECS task
+        run: |
+          aws ecs update-service \
+            --cluster $(terraform -chdir=aws-terraform output -raw ecs_cluster_name) \
+            --service $(terraform -chdir=aws-terraform output -raw ecs_service_name) \
+            --force-new-deployment
