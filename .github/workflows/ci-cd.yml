@@ -26,17 +26,19 @@ jobs:
           terraform_version: 1.8.4
 
       - name: Terraform Init
-        run: terraform -chdir=aws-terraform init
+        working-directory: ./aws-terraform
+        run: terraform init -input=false
 
       - name: Terraform Apply
         working-directory: ./aws-terraform
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-        run: terraform -chdir=aws-terraform apply -auto-approve
+        run: terraform apply -auto-approve
 
       - name: Get ECR Repo URL
         id: ecr
-        run: echo "REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo)" >> $GITHUB_ENV
+        working-directory: ./aws-terraform
+        run: echo "REPO_URL=$(terraform output -raw ecr_repo)" >> $GITHUB_ENV
 
       - name: Login to ECR
         run: |
