@@ -110,7 +110,6 @@ resource "aws_db_instance" "spring_petclinic_rds" {
   engine                  = "mysql"
   engine_version          = "8.0"
   instance_class          = "db.t3.micro"
-  name                    = "petclinicdb"
   username                = var.db_username
   password                = var.db_password
   db_subnet_group_name    = aws_db_subnet_group.spring_petclinic_db_subnet_group.name
