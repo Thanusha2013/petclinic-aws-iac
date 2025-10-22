@@ -29,6 +29,9 @@ jobs:
         run: terraform -chdir=aws-terraform init
 
       - name: Terraform Apply
+        working-directory: ./aws-terraform
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         run: terraform -chdir=aws-terraform apply -auto-approve
 
       - name: Get ECR Repo URL
