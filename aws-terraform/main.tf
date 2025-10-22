@@ -1,25 +1,65 @@
-resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
+# ----------------------------
+# VPC
+# ----------------------------
+resource "aws_vpc" "this" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = { Name = var.aws_vpc_name }
 }
 
-resource "aws_subnet" "public_subnet_1" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
+# Internet Gateway for public subnets
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+  tags = { Name = "${var.aws_vpc_name}-igw" }
+}
+
+# ----------------------------
+# Subnets
+# ----------------------------
+resource "aws_subnet" "public" {
+  count                   = length(var.public_subnets)
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.public_subnets[count.index]
   map_public_ip_on_launch = true
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  tags = { Name = "${var.aws_vpc_name}-public-${count.index}" }
 }
 
-resource "aws_subnet" "public_subnet_2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "us-east-1b"
-  map_public_ip_on_launch = true
+resource "aws_subnet" "private" {
+  count             = length(var.private_subnets)
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = var.private_subnets[count.index]
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+  tags = { Name = "${var.aws_vpc_name}-private-${count.index}" }
 }
 
+data "aws_availability_zones" "available" {}
+
+# ----------------------------
+# Route Table for public subnets
+# ----------------------------
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.this.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.this.id
+  }
+}
+
+resource "aws_route_table_association" "public" {
+  count          = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
+# ----------------------------
+# Security Groups
+# ----------------------------
 resource "aws_security_group" "rds_sg" {
   name        = "rds_sg"
-  description = "Allow MySQL inbound traffic"
-  vpc_id      = aws_vpc.main.id
+  description = "Allow database traffic"
+  vpc_id      = aws_vpc.this.id
 
   ingress {
     from_port   = 3306
@@ -36,9 +76,32 @@ resource "aws_security_group" "rds_sg" {
   }
 }
 
+resource "aws_security_group" "ecs_sg" {
+  name        = "ecs_sg"
+  description = "Allow HTTP traffic to ECS"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# ----------------------------
+# RDS
+# ----------------------------
 resource "aws_db_subnet_group" "spring_petclinic_db_subnet_group" {
   name       = "spring-petclinic-db-subnet-group"
-  subnet_ids = [aws_subnet.public_subnet_1.id, aws_subnet.public_subnet_2.id]
+  subnet_ids = aws_subnet.private[*].id
 }
 
 resource "aws_db_instance" "spring_petclinic_rds" {
@@ -47,52 +110,47 @@ resource "aws_db_instance" "spring_petclinic_rds" {
   engine                  = "mysql"
   engine_version          = "8.0"
   instance_class          = "db.t3.micro"
-  db_name                 = "petclinic"
-  username                = "admin"
-  password                = "password123"
-  parameter_group_name    = "default.mysql8.0"
-  skip_final_snapshot     = true
+  name                    = "petclinicdb"
+  username                = var.db_username
+  password                = var.db_password
   db_subnet_group_name    = aws_db_subnet_group.spring_petclinic_db_subnet_group.name
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
-  publicly_accessible     = true
+  publicly_accessible     = false
+  skip_final_snapshot     = true
 }
 
-resource "aws_ecr_repository" "spring_petclinic_repo" {
-  name = "spring-petclinic"
+# ----------------------------
+# IAM Role for ECS
+# ----------------------------
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name = "ecsTaskExecutionRole"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
+      }
+    }]
+  })
 }
 
-resource "aws_ecs_cluster" "spring_petclinic_cluster" {
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# ----------------------------
+# ECS Cluster
+# ----------------------------
+resource "aws_ecs_cluster" "spring_petclinic" {
   name = "spring-petclinic-cluster"
 }
 
-resource "aws_ecs_task_definition" "spring_petclinic_task" {
-  family                   = "spring-petclinic-task"
-  requires_compatibilities  = ["FARGATE"]
-  network_mode              = "awsvpc"
-  cpu                       = "512"
-  memory                    = "1024"
-
-  container_definitions = jsonencode([{
-    name      = "spring-petclinic"
-    image     = "${aws_ecr_repository.spring_petclinic_repo.repository_url}:latest"
-    essential = true
-    portMappings = [{
-      containerPort = 8080
-      hostPort      = 8080
-    }]
-  }])
-}
-
-resource "aws_ecs_service" "spring_petclinic_service" {
-  name            = "spring-petclinic-service"
-  cluster         = aws_ecs_cluster.spring_petclinic_cluster.id
-  task_definition = aws_ecs_task_definition.spring_petclinic_task.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets          = [aws_subnet.public_subnet_1.id, aws_subnet.public_subnet_2.id]
-    assign_public_ip = true
-    security_groups  = [aws_security_group.rds_sg.id]
-  }
+# ----------------------------
+# ECR Repository
+# ----------------------------
+resource "aws_ecr_repository" "spring_petclinic" {
+  name = "spring-petclinic"
 }
