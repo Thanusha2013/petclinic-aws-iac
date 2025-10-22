@@ -1,79 +1,45 @@
-# VPC
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+resource "aws_vpc" "spring_petclinic_vpc" {
+  cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
-
   tags = {
-    Name = var.aws_vpc_name
+    Name = "spring-petclinic-vpc"
   }
 }
 
-# Subnets
-resource "aws_subnet" "public1" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
+resource "aws_internet_gateway" "spring_petclinic_igw" {
+  vpc_id = aws_vpc.spring_petclinic_vpc.id
+}
+
+resource "aws_subnet" "spring_petclinic_subnets" {
+  count                   = length(var.public_subnets)
+  vpc_id                  = aws_vpc.spring_petclinic_vpc.id
+  cidr_block              = var.public_subnets[count.index]
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
+  tags = {
+    Name = "spring-petclinic-subnet-${count.index}"
+  }
 }
 
-resource "aws_subnet" "public2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "us-east-1b"
-  map_public_ip_on_launch = true
-}
+data "aws_availability_zones" "available" {}
 
-# Internet Gateway
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-}
-
-# Route Table
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
+resource "aws_route_table" "spring_petclinic_rt" {
+  vpc_id = aws_vpc.spring_petclinic_vpc.id
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
+    gateway_id = aws_internet_gateway.spring_petclinic_igw.id
   }
 }
 
-resource "aws_route_table_association" "public1" {
-  subnet_id      = aws_subnet.public1.id
-  route_table_id = aws_route_table.public.id
+resource "aws_route_table_association" "spring_petclinic_rta" {
+  count          = length(aws_subnet.spring_petclinic_subnets)
+  subnet_id      = aws_subnet.spring_petclinic_subnets[count.index].id
+  route_table_id = aws_route_table.spring_petclinic_rt.id
 }
 
-resource "aws_route_table_association" "public2" {
-  subnet_id      = aws_subnet.public2.id
-  route_table_id = aws_route_table.public.id
-}
-
-# Security Groups
-resource "aws_security_group" "ecs" {
-  name        = "ecs-sg"
-  description = "Allow ECS traffic"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_security_group" "lb" {
-  name        = "lb-sg"
-  description = "Allow HTTP traffic"
-  vpc_id      = aws_vpc.main.id
+resource "aws_security_group" "spring_petclinic_sg" {
+  vpc_id = aws_vpc.spring_petclinic_vpc.id
 
   ingress {
     from_port   = 80
@@ -88,50 +54,74 @@ resource "aws_security_group" "lb" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "spring-petclinic-sg"
+  }
 }
 
-# ECR
 resource "aws_ecr_repository" "spring_petclinic" {
   name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 }
 
-# ECS Cluster
-resource "aws_ecs_cluster" "cluster" {
+resource "aws_ecs_cluster" "spring_petclinic_cluster" {
   name = "spring-petclinic-cluster"
 }
 
-# IAM Role
 resource "aws_iam_role" "ecs_task_role" {
-  name = "ecsTaskExecutionRole"
-
+  name = "spring-petclinic-ecs-task-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Action = "sts:AssumeRole"
       Effect = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   role       = aws_iam_role.ecs_task_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Task Definition
-resource "aws_ecs_task_definition" "task" {
-  family                   = "spring-petclinic-task"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = var.ecs_cpu
-  memory                   = var.ecs_memory
-  execution_role_arn       = aws_iam_role.ecs_task_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
+resource "aws_lb" "spring_petclinic_lb" {
+  name               = "spring-petclinic-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.spring_petclinic_sg.id]
+  subnets            = [for subnet in aws_subnet.spring_petclinic_subnets : subnet.id]
+}
 
+resource "aws_lb_target_group" "spring_petclinic_tg" {
+  name     = "spring-petclinic-tg"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.spring_petclinic_vpc.id
+  health_check {
+    path = "/"
+  }
+}
+
+resource "aws_lb_listener" "spring_petclinic_listener" {
+  load_balancer_arn = aws_lb.spring_petclinic_lb.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.spring_petclinic_tg.arn
+  }
+}
+
+resource "aws_ecs_task_definition" "spring_petclinic_task" {
+  family                   = "spring-petclinic-task"
+  network_mode              = "awsvpc"
+  requires_compatibilities  = ["FARGATE"]
+  cpu                       = "512"
+  memory                    = "1024"
+  execution_role_arn        = aws_iam_role.ecs_task_role.arn
   container_definitions = jsonencode([
     {
       name      = "spring-petclinic"
@@ -143,64 +133,25 @@ resource "aws_ecs_task_definition" "task" {
           hostPort      = 8080
         }
       ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = "/ecs/spring-petclinic"
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "ecs"
-        }
-      }
     }
   ])
 }
 
-# ECS Service
-resource "aws_ecs_service" "service" {
+resource "aws_ecs_service" "spring_petclinic_service" {
   name            = "spring-petclinic-service"
-  cluster         = aws_ecs_cluster.cluster.id
-  task_definition = aws_ecs_task_definition.task.arn
-  desired_count   = var.desired_count
+  cluster         = aws_ecs_cluster.spring_petclinic_cluster.id
+  task_definition = aws_ecs_task_definition.spring_petclinic_task.arn
+  desired_count   = 1
   launch_type     = "FARGATE"
-
   network_configuration {
-    subnets         = [aws_subnet.public1.id, aws_subnet.public2.id]
-    security_groups = [aws_security_group.ecs.id]
     assign_public_ip = true
+    subnets          = [for subnet in aws_subnet.spring_petclinic_subnets : subnet.id]
+    security_groups  = [aws_security_group.spring_petclinic_sg.id]
   }
-
   load_balancer {
-    target_group_arn = aws_lb_target_group.tg.arn
+    target_group_arn = aws_lb_target_group.spring_petclinic_tg.arn
     container_name   = "spring-petclinic"
     container_port   = 8080
   }
-
-  depends_on = [aws_iam_role_policy_attachment.ecs_task_execution]
-}
-
-# Load Balancer
-resource "aws_lb" "spring_petclinic_lb" {
-  name               = "spring-petclinic-lb"
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.lb.id]
-  subnets            = [aws_subnet.public1.id, aws_subnet.public2.id]
-}
-
-resource "aws_lb_target_group" "tg" {
-  name        = "spring-petclinic-tg"
-  port        = 8080
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-}
-
-resource "aws_lb_listener" "listener" {
-  load_balancer_arn = aws_lb.spring_petclinic_lb.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.tg.arn
-  }
+  depends_on = [aws_lb_listener.spring_petclinic_listener]
 }
