@@ -1,15 +1,15 @@
-output "ecr_repo" {
-  value = aws_ecr_repository.spring_petclinic.repository_url
-}
-
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.spring_petclinic_cluster.name
-}
-
-output "ecs_service_name" {
-  value = aws_ecs_service.spring_petclinic_service.name
-}
-
 output "load_balancer_dns" {
   value = aws_lb.spring_petclinic_lb.dns_name
+}
+
+output "rds_endpoint" {
+  value = aws_db_instance.spring_petclinic_rds.address
+}
+
+output "rds_db_name" {
+  value = aws_db_instance.spring_petclinic_rds.db_name
+}
+
+output "ecr_repo" {
+  value = aws_ecr_repository.spring_petclinic.repository_url
 }
