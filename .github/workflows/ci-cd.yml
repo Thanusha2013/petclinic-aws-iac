@@ -35,7 +35,9 @@ jobs:
       - name: Save Terraform Outputs
         id: tfoutputs
         run: |
-          echo "ECR_REPO=$(terraform -chdir=aws-terraform output -raw ecr_repo)" >> $GITHUB_ENV
+          ECR_REPO=$(terraform -chdir=aws-terraform output -raw ecr_repo | tr -d '[:space:]')
+          echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+
 
   build-and-deploy:
     runs-on: ubuntu-latest
