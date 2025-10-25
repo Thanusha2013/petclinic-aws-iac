@@ -7,11 +7,10 @@ on:
 
 jobs:
   terraform:
-    name: Terraform Apply
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Terraform
@@ -37,15 +36,15 @@ jobs:
       - name: Save Terraform Outputs
         id: tfoutputs
         run: |
-          echo "ECR_REPO=$(terraform -chdir=aws-terraform output -raw ecr_repo)" >> $GITHUB_ENV
+          REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo | tr -d '\n')
+          echo "ECR_REPO=$REPO_URL" >> $GITHUB_ENV
 
   build-and-deploy:
-    name: Build & Deploy Docker
     runs-on: ubuntu-latest
     needs: terraform
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
