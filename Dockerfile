@@ -1,25 +1,23 @@
-# Use Java 25 base image
-FROM eclipse-temurin:25-jdk AS build
-
-# Install Maven
-RUN apt-get update && \
-    apt-get install -y maven git && \
-    rm -rf /var/lib/apt/lists/*
+# Use a Maven + JDK 17 image that works with Spring PetClinic
+FROM maven:3.9.0-eclipse-temurin-17 AS build
 
 WORKDIR /workspace
 
-# Clone Spring PetClinic repo
+# Clone Spring PetClinic repo (or assume local code in src/)
 ARG REPO_URL=https://github.com/spring-projects/spring-petclinic.git
-RUN git clone --depth 1 $REPO_URL app
+RUN git clone --depth 1 $REPO_URL app || true
 
 WORKDIR /workspace/app
 
-# Build Spring PetClinic
-RUN mvn -DskipTests package
+# Build the project (skip tests)
+RUN mvn clean package -DskipTests
 
-# Final runtime image
-FROM eclipse-temurin:25-jre
+# Runtime image
+FROM eclipse-temurin:17-jre
 WORKDIR /app
+
+# Copy jar from build stage
 COPY --from=build /workspace/app/target/*.jar app.jar
+
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]
