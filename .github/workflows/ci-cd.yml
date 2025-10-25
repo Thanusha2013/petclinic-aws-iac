@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.8.4
 
@@ -37,7 +37,9 @@ jobs:
 
       - name: Save Terraform Outputs
         id: tfoutputs
-        run: echo "::set-output name=ecr_repo::$(terraform -chdir=aws-terraform output -raw ecr_repo)"
+        run: |
+          ECR_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo)
+          echo "::set-output name=ecr_repo::$ECR_URL"
 
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -54,12 +56,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Set ECR Repo Environment Variable
+        run: echo "ECR_REPO=${{ needs.terraform.outputs.ECR_REPO }}" >> $GITHUB_ENV
+
       - name: Login to AWS ECR
         run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ needs.terraform.outputs.ECR_REPO }}
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ env.ECR_REPO }}
 
       - name: Build Docker Image
-        run: docker build -t ${{ needs.terraform.outputs.ECR_REPO }}:latest .
+        run: docker build -t ${{ env.ECR_REPO }}:latest .
 
-      - name: Push Docker Image to ECR
-        run: docker push ${{ needs.terraform.outputs.ECR_REPO }}:latest
+      - name: Push Docker Image
+        run: docker push ${{ env.ECR_REPO }}:latest
