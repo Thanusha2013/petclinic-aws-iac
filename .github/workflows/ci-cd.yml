@@ -12,27 +12,28 @@ steps:
 - name: Checkout
 uses: actions/checkout@v4
 
+
 - name: Setup Terraform
     uses: hashicorp/setup-terraform@v2
     with:
       terraform_version: 1.8.4
 
-  - name: Configure AWS Credentials
+- name: Configure AWS Credentials
     uses: aws-actions/configure-aws-credentials@v3
     with:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       aws-region: ${{ secrets.AWS_REGION }}
 
-  - name: Terraform Init
+- name: Terraform Init
     run: terraform -chdir=aws-terraform init
 
-  - name: Terraform Apply
+- name: Terraform Apply
     env:
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
     run: terraform -chdir=aws-terraform apply -auto-approve
 
-  - name: Save Terraform Outputs
+- name: Save Terraform Outputs
     id: tfoutputs
     run: |
       echo "ECR_REPO=$(terraform -chdir=aws-terraform output -raw ecr_repo)" >> $GITHUB_ENV
