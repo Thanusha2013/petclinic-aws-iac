@@ -11,7 +11,7 @@ output "private_subnets" {
 }
 
 output "rds_endpoint" {
-  value = aws_db_instance.spring_petclinic_rds.endpoint
+  value = aws_db_instance.spring_petclinic_rds.address
 }
 
 output "ecs_cluster_id" {
