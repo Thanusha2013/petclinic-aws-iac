@@ -1,11 +1,15 @@
-variable "project_name" {
-description = "Project name for tagging"
-type        = string
-default     = "spring-petclinic"
+variable "app_name" {
+  default = "spring-petclinic"
 }
 
-variable "app_port" {
-description = "Port that the container listens on"
-type        = number
-default     = 8080
+variable "vpc_cidr" {
+  default = "10.0.0.0/16"
+}
+
+variable "public_subnet_a" {
+  default = "10.0.1.0/24"
+}
+
+variable "public_subnet_b" {
+  default = "10.0.2.0/24"
 }
