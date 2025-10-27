@@ -37,11 +37,15 @@ jobs:
       - name: Get ECR Repo URL
         id: ecr_repo
         run: |
-         ECR_REPO=$(terraform -chdir=aws-terraform output -raw ecr_repo | head -n 1 | tr -d '\r')
-         echo "ECR_REPO=$ECR_REPO"
-         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
-
-
+          echo "Fetching ECR repository URL from Terraform..."
+          ECR_REPO=$(terraform -chdir=aws-terraform output ecr_repo | tr -d '"' | awk 'NR==1 {print $1}')
+          if [ -z "$ECR_REPO" ]; then
+            echo "❌ ERROR: ECR_REPO is empty. Check Terraform output."
+            terraform -chdir=aws-terraform output
+            exit 1
+          fi
+          echo "✅ ECR_REPO found: $ECR_REPO"
+          echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
 
   build:
     name: Build and Push Docker Image
@@ -60,14 +64,12 @@ jobs:
 
       - name: Login to Amazon ECR
         run: |
-         echo "Logging in to Amazon ECR..."
-         echo "ECR_REPO=$ECR_REPO"
-         if [ -z "$ECR_REPO" ]; then
-         echo "❌ ERROR: ECR_REPO is empty. Check Terraform output or previous step."
-         exit 1
-         fi
-         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(echo $ECR_REPO | cut -d'/' -f1)
-
+          echo "Logging in to Amazon ECR..."
+          if [ -z "$ECR_REPO" ]; then
+            echo "❌ ERROR: ECR_REPO is empty. Check Terraform step."
+            exit 1
+          fi
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REPO"
 
       - name: Build Docker Image
         run: |
