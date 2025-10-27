@@ -7,14 +7,16 @@ on:
 
 jobs:
   terraform:
-    name: Terraform Apply
     runs-on: ubuntu-latest
+    outputs:
+      ECR_REPO: ${{ steps.tfoutputs.outputs.ecr_repo }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.8.4
 
@@ -28,25 +30,21 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir=aws-terraform init
 
-      - name: Terraform Plan
-        run: terraform -chdir=aws-terraform plan
-
       - name: Terraform Apply
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         run: terraform -chdir=aws-terraform apply -auto-approve
 
-      - name: Get ECR Repo URL
-        id: get_ecr_repo
+      - name: Save Terraform Outputs
+        id: tfoutputs
         run: |
-         echo "Fetching ECR repo URL..."
-         ECR_REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo_url 2>/dev/null | tr -d '\r' | grep -oE '^[^:]+')
-         echo "✅ ECR_REPO_URL=$ECR_REPO_URL"
-         echo "ECR_REPO_URL=$ECR_REPO_URL" >> $GITHUB_ENV
+          ECR_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo)
+          echo "::set-output name=ecr_repo::$ECR_URL"
 
-
-  build:
-    name: Build and Push Docker Image
+  build-and-deploy:
     runs-on: ubuntu-latest
     needs: terraform
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -58,50 +56,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Verify ECR URL before login
-        run: |
-          if [ -z "$ECR_REPO_URL" ]; then
-            echo "❌ ERROR: ECR_REPO_URL is empty."
-            exit 1
-          else
-            echo "✅ ECR_REPO_URL=$ECR_REPO_URL"
-          fi
+      - name: Set ECR Repo Environment Variable
+        run: echo "ECR_REPO=${{ needs.terraform.outputs.ECR_REPO }}" >> $GITHUB_ENV
 
-      - name: Login to Amazon ECR
+      - name: Login to AWS ECR
         run: |
-          echo "✅ Logging into Amazon ECR..."
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REPO_URL"
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ env.ECR_REPO }}
 
       - name: Build Docker Image
-        run: |
-          echo "Building Docker image..."
-          docker build -t spring-petclinic .
-          docker tag spring-petclinic:latest "$ECR_REPO_URL:latest"
+        run: docker build -t ${{ env.ECR_REPO }}:latest .
 
-      - name: Push Docker Image to ECR
-        run: |
-          echo "Pushing image to ECR..."
-          docker push "$ECR_REPO_URL:latest"
-
-  deploy:
-    name: Deploy to ECS
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Update ECS Service
-        run: |
-          ECS_CLUSTER=$(terraform -chdir=aws-terraform output -raw ecs_cluster_name 2>/dev/null)
-          ECS_SERVICE=$(terraform -chdir=aws-terraform output -raw ecs_service_name 2>/dev/null)
-          echo "Cluster: $ECS_CLUSTER"
-          echo "Service: $ECS_SERVICE"
-          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" --force-new-deployment
+      - name: Push Docker Image
+        run: docker push ${{ env.ECR_REPO }}:latest
