@@ -2,7 +2,6 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.example</groupId>
@@ -10,14 +9,12 @@
   <version>1.0.0</version>
   <packaging>jar</packaging>
 
-  <name>Spring PetClinic</name>
-  <description>Spring Boot Demo Application</description>
+  <name>Spring Petclinic</name>
 
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.2.5</version>
-    <relativePath/> <!-- lookup parent from repository -->
+    <version>3.3.3</version>
   </parent>
 
   <properties>
@@ -29,6 +26,10 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
   </dependencies>
 
   <build>
@@ -39,6 +40,4 @@
       </plugin>
     </plugins>
   </build>
-
 </project>
-
