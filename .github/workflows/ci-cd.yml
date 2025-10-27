@@ -57,7 +57,14 @@ jobs:
 
       - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO
+         echo "Logging in to Amazon ECR..."
+         echo "ECR_REPO=$ECR_REPO"
+         if [ -z "$ECR_REPO" ]; then
+         echo "❌ ERROR: ECR_REPO is empty. Check Terraform output or previous step."
+         exit 1
+         fi
+         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(echo $ECR_REPO | cut -d'/' -f1)
+
 
       - name: Build Docker Image
         run: |
