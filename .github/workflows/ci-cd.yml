@@ -37,10 +37,11 @@ jobs:
       - name: Get ECR Repo URL
         id: get_ecr_repo
         run: |
-          echo "Fetching ECR repo URL..."
-          ECR_REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo_url | tr -d '\r')
-          echo "ECR_REPO_URL=$ECR_REPO_URL"
-          echo "ECR_REPO_URL=$ECR_REPO_URL" >> $GITHUB_ENV
+         echo "Fetching ECR repo URL..."
+         ECR_REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo_url 2>/dev/null | tr -d '\r' | grep -oE '^[^:]+')
+         echo "✅ ECR_REPO_URL=$ECR_REPO_URL"
+         echo "ECR_REPO_URL=$ECR_REPO_URL" >> $GITHUB_ENV
+
 
   build:
     name: Build and Push Docker Image
