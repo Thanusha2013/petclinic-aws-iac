@@ -1,5 +1,6 @@
 FROM openjdk:17-jdk-slim
 WORKDIR /app
-COPY target/spring-petclinic-*.jar app.jar
+COPY . .
+RUN ./mvnw package -DskipTests
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+CMD ["java", "-jar", "target/spring-petclinic-2.7.0.jar"]
