@@ -1,58 +1,48 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
+# main.tf
 
-  required_version = ">= 1.8.0"
-}
-
-provider "aws" {
-  region = var.region
-}
-
-# ------------------------------
-# VPC and Networking
-# ------------------------------
+# -------------------------------
+#  Networking (VPC + Subnets)
+# -------------------------------
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
+  cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
 
   tags = {
-    Name = "spring-petclinic-vpc"
+    Name = "main-vpc"
   }
 }
 
-resource "aws_subnet" "subnet1" {
+resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.region}a"
   map_public_ip_on_launch = true
+  availability_zone       = "us-east-1a"
 
   tags = {
-    Name = "spring-petclinic-subnet-1"
+    Name = "public-subnet-a"
   }
 }
 
-resource "aws_subnet" "subnet2" {
+resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.region}b"
   map_public_ip_on_launch = true
+  availability_zone       = "us-east-1b"
 
   tags = {
-    Name = "spring-petclinic-subnet-2"
+    Name = "public-subnet-b"
   }
 }
 
-resource "aws_internet_gateway" "igw" {
+# -------------------------------
+#  Internet Gateway + Route Table
+# -------------------------------
+resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "spring-petclinic-igw"
+    Name = "main-igw"
   }
 }
 
@@ -61,114 +51,62 @@ resource "aws_route_table" "public" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
+    gateway_id = aws_internet_gateway.gw.id
   }
 
   tags = {
-    Name = "spring-petclinic-rt"
+    Name = "public-rt"
   }
 }
 
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.subnet1.id
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "b" {
-  subnet_id      = aws_subnet.subnet2.id
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
   route_table_id = aws_route_table.public.id
 }
 
-# ------------------------------
-# Security Group
-# ------------------------------
-resource "aws_security_group" "app_sg" {
-  name        = "spring-petclinic-sg"
-  description = "Allow HTTP traffic"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTP"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "spring-petclinic-sg"
-  }
-}
-
-# ------------------------------
-# ECR Repository
-# ------------------------------
-resource "aws_ecr_repository" "repo" {
-  name = "spring-petclinic"
+# -------------------------------
+#  ECR Repository
+# -------------------------------
+resource "aws_ecr_repository" "app_repo" {
+  name                 = "spring-petclinic"
   image_tag_mutability = "MUTABLE"
+
   image_scanning_configuration {
     scan_on_push = true
   }
 
   tags = {
-    Name = "spring-petclinic"
+    Name = "spring-petclinic-ecr"
   }
 }
 
-# ------------------------------
-# ECS Cluster
-# ------------------------------
-resource "aws_ecs_cluster" "cluster" {
+# -------------------------------
+#  ECS Cluster
+# -------------------------------
+resource "aws_ecs_cluster" "main" {
   name = "spring-petclinic-cluster"
 }
 
-# ------------------------------
-# ECS Task Definition
-# ------------------------------
-resource "aws_ecs_task_definition" "task" {
-  family                   = "spring-petclinic-task"
-  network_mode              = "awsvpc"
-  requires_compatibilities  = ["FARGATE"]
-  cpu                       = "512"
-  memory                    = "1024"
-
-  container_definitions = jsonencode([
-    {
-      name  = "spring-petclinic"
-      image = "${aws_ecr_repository.repo.repository_url}:latest"
-      portMappings = [
-        {
-          containerPort = 8080
-          hostPort      = 8080
-          protocol      = "tcp"
-        }
-      ]
-    }
-  ])
+# -------------------------------
+#  Outputs
+# -------------------------------
+output "vpc_id" {
+  value = aws_vpc.main.id
 }
 
-# ------------------------------
-# ECS Service
-# ------------------------------
-resource "aws_ecs_service" "service" {
-  name            = "spring-petclinic-service"
-  cluster         = aws_ecs_cluster.cluster.id
-  task_definition = aws_ecs_task_definition.task.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+output "public_subnets" {
+  value = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+}
 
-  network_configuration {
-    subnets          = [aws_subnet.subnet1.id, aws_subnet.subnet2.id]
-    security_groups  = [aws_security_group.app_sg.id]
-    assign_public_ip = true
-  }
+output "ecr_repo" {
+  value = aws_ecr_repository.app_repo.repository_url
+}
 
-  depends_on = [aws_ecs_task_definition.task]
+output "ecs_cluster_name" {
+  value = aws_ecs_cluster.main.name
 }
