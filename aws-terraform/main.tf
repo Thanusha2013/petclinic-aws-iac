@@ -1,53 +1,34 @@
-# ----------------------------
-# VPC
-# ----------------------------
-resource "aws_vpc" "this" {
+# ----- Networking -----
+data "aws_availability_zones" "available" {}
+
+resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { Name = var.aws_vpc_name }
+  tags = { Name = "${var.project_name}-vpc" }
 }
 
-# Internet Gateway
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.this.id
-  tags   = { Name = "${var.aws_vpc_name}-igw" }
-}
-
-# ----------------------------
-# Availability Zones
-# ----------------------------
-data "aws_availability_zones" "available" {}
-
-# ----------------------------
-# Subnets
-# ----------------------------
 resource "aws_subnet" "public" {
-  count                   = length(var.public_subnets)
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = var.public_subnets[count.index]
-  map_public_ip_on_launch = true
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet("10.0.0.0/16", 8, count.index)
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  tags = { Name = "${var.aws_vpc_name}-public-${count.index}" }
+  map_public_ip_on_launch = true
+  tags = { Name = "${var.project_name}-public-${count.index + 1}" }
 }
 
-resource "aws_subnet" "private" {
-  count             = length(var.private_subnets)
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.private_subnets[count.index]
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-  tags = { Name = "${var.aws_vpc_name}-private-${count.index}" }
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "${var.project_name}-igw" }
 }
 
-# ----------------------------
-# Route Table for public subnets
-# ----------------------------
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.main.id
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
+    gateway_id = aws_internet_gateway.gw.id
   }
+  tags = { Name = "${var.project_name}-public-rt" }
 }
 
 resource "aws_route_table_association" "public" {
@@ -56,104 +37,90 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# ----------------------------
-# Security Groups
-# ----------------------------
-resource "aws_security_group" "rds_sg" {
-  name        = "rds_sg"
-  description = "Allow MySQL traffic"
-  vpc_id      = aws_vpc.this.id
-
-  ingress {
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+# ----- ECR -----
+resource "aws_ecr_repository" "repo" {
+  name                 = var.project_name
+  image_tag_mutability = "MUTABLE"
+  image_scanning_configuration {
+    scan_on_push = true
   }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  tags = { Name = "${var.project_name}-repo" }
 }
 
-resource "aws_security_group" "ecs_sg" {
-  name        = "ecs_sg"
-  description = "Allow HTTP traffic to ECS"
-  vpc_id      = aws_vpc.this.id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+# ----- ECS -----
+resource "aws_ecs_cluster" "ecs_cluster" {
+  name = "${var.project_name}-cluster"
 }
 
-# ----------------------------
-# RDS MySQL
-# ----------------------------
-resource "aws_db_subnet_group" "spring_petclinic_db_subnet_group" {
-  name       = "spring-petclinic-db-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
-  tags       = { Name = "spring-petclinic-db-subnet-group" }
-}
-
-resource "aws_db_instance" "spring_petclinic_rds" {
-  identifier             = "spring-petclinic-db"
-  allocated_storage      = 20
-  engine                 = "mysql"
-  engine_version         = "8.0"
-  instance_class         = "db.t3.micro"
-  username               = var.db_username
-  password               = var.db_password
-  db_subnet_group_name   = aws_db_subnet_group.spring_petclinic_db_subnet_group.name
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
-  publicly_accessible    = false
-  skip_final_snapshot    = true
-}
-
-# ----------------------------
-# IAM Role for ECS
-# ----------------------------
 resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "ecsTaskExecutionRole"
+  name = "${var.project_name}-ecs-task-execution-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
+      Action = "sts:AssumeRole"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Effect = "Allow"
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
+resource "aws_iam_role_policy_attachment" "ecs_task_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ----------------------------
-# ECS Cluster
-# ----------------------------
-resource "aws_ecs_cluster" "spring_petclinic" {
-  name = "spring-petclinic-cluster"
+resource "aws_security_group" "ecs_sg" {
+  name        = "${var.project_name}-sg"
+  description = "Allow HTTP"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_name}-sg" }
 }
 
-# ----------------------------
-# ECR Repository
-# ----------------------------
-resource "aws_ecr_repository" "spring_petclinic" {
-  name = "spring-petclinic"
+resource "aws_ecs_task_definition" "task" {
+  family                   = "${var.project_name}-task"
+  network_mode              = "awsvpc"
+  requires_compatibilities  = ["FARGATE"]
+  cpu                       = "512"
+  memory                    = "1024"
+  execution_role_arn        = aws_iam_role.ecs_task_execution_role.arn
+  container_definitions     = jsonencode([
+    {
+      name      = var.project_name
+      image     = "${aws_ecr_repository.repo.repository_url}:latest"
+      essential = true
+      portMappings = [{
+        containerPort = 8080
+        hostPort      = 8080
+      }]
+    }
+  ])
+}
+
+resource "aws_ecs_service" "service" {
+  name            = "${var.project_name}-service"
+  cluster         = aws_ecs_cluster.ecs_cluster.id
+  task_definition = aws_ecs_task_definition.task.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = aws_subnet.public[*].id
+    assign_public_ip = true
+    security_groups = [aws_security_group.ecs_sg.id]
+  }
 }
