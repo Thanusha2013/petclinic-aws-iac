@@ -28,13 +28,17 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir=aws-terraform init
 
+      - name: Terraform Plan
+        run: terraform -chdir=aws-terraform plan
+
       - name: Terraform Apply
         run: terraform -chdir=aws-terraform apply -auto-approve
 
       - name: Get ECR Repo URL
-        id: ecr_repo
+        id: get_ecr_repo
         run: |
-          ECR_REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo_url 2>/dev/null | tr -d '\r')
+          echo "Fetching ECR repo URL..."
+          ECR_REPO_URL=$(terraform -chdir=aws-terraform output -raw ecr_repo_url | tr -d '\r')
           echo "ECR_REPO_URL=$ECR_REPO_URL"
           echo "ECR_REPO_URL=$ECR_REPO_URL" >> $GITHUB_ENV
 
@@ -53,21 +57,30 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Login to Amazon ECR
+      - name: Verify ECR URL before login
         run: |
           if [ -z "$ECR_REPO_URL" ]; then
-            echo "❌ ERROR: ECR_REPO_URL is empty. Check Terraform output."
+            echo "❌ ERROR: ECR_REPO_URL is empty."
             exit 1
+          else
+            echo "✅ ECR_REPO_URL=$ECR_REPO_URL"
           fi
+
+      - name: Login to Amazon ECR
+        run: |
+          echo "✅ Logging into Amazon ECR..."
           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REPO_URL"
 
       - name: Build Docker Image
         run: |
+          echo "Building Docker image..."
           docker build -t spring-petclinic .
           docker tag spring-petclinic:latest "$ECR_REPO_URL:latest"
 
       - name: Push Docker Image to ECR
-        run: docker push "$ECR_REPO_URL:latest"
+        run: |
+          echo "Pushing image to ECR..."
+          docker push "$ECR_REPO_URL:latest"
 
   deploy:
     name: Deploy to ECS
