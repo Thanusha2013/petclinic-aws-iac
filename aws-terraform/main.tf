@@ -1,10 +1,8 @@
-# main.tf
-
 # -------------------------------
-#  Networking (VPC + Subnets)
+#  VPC and Subnets
 # -------------------------------
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -15,9 +13,9 @@ resource "aws_vpc" "main" {
 
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
+  cidr_block              = var.public_subnet_a
   availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
 
   tags = {
     Name = "public-subnet-a"
@@ -26,9 +24,9 @@ resource "aws_subnet" "public_a" {
 
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  map_public_ip_on_launch = true
+  cidr_block              = var.public_subnet_b
   availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
 
   tags = {
     Name = "public-subnet-b"
@@ -36,11 +34,10 @@ resource "aws_subnet" "public_b" {
 }
 
 # -------------------------------
-#  Internet Gateway + Route Table
+#  Internet Gateway and Routing
 # -------------------------------
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
-
   tags = {
     Name = "main-igw"
   }
@@ -59,12 +56,12 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table_association" "public_a" {
+resource "aws_route_table_association" "a" {
   subnet_id      = aws_subnet.public_a.id
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "public_b" {
+resource "aws_route_table_association" "b" {
   subnet_id      = aws_subnet.public_b.id
   route_table_id = aws_route_table.public.id
 }
@@ -73,7 +70,7 @@ resource "aws_route_table_association" "public_b" {
 #  ECR Repository
 # -------------------------------
 resource "aws_ecr_repository" "app_repo" {
-  name                 = "spring-petclinic"
+  name                 = var.app_name
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -81,7 +78,7 @@ resource "aws_ecr_repository" "app_repo" {
   }
 
   tags = {
-    Name = "spring-petclinic-ecr"
+    Name = "${var.app_name}-ecr"
   }
 }
 
@@ -89,24 +86,48 @@ resource "aws_ecr_repository" "app_repo" {
 #  ECS Cluster
 # -------------------------------
 resource "aws_ecs_cluster" "main" {
-  name = "spring-petclinic-cluster"
+  name = "${var.app_name}-cluster"
 }
 
 # -------------------------------
-#  Outputs
+#  ECS Task Definition
 # -------------------------------
-output "vpc_id" {
-  value = aws_vpc.main.id
+resource "aws_ecs_task_definition" "app" {
+  family                   = "${var.app_name}-task"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+
+  container_definitions = jsonencode([
+    {
+      name      = var.app_name
+      image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
+      essential = true
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+        }
+      ]
+    }
+  ])
 }
 
-output "public_subnets" {
-  value = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-}
+# -------------------------------
+#  ECS Service
+# -------------------------------
+resource "aws_ecs_service" "service" {
+  name            = "${var.app_name}-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.app.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
 
-output "ecr_repo" {
-  value = aws_ecr_repository.app_repo.repository_url
-}
+  network_configuration {
+    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    assign_public_ip = true
+  }
 
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.main.name
+  depends_on = [aws_ecs_task_definition.app]
 }
